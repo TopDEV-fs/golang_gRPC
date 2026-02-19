@@ -2,10 +2,13 @@ package committer
 
 import (
 	"context"
+	"errors"
 
 	"cloud.google.com/go/spanner"
 	"github.com/Vektor-AI/commitplan"
 )
+
+var ErrUnsupportedPlanType = errors.New("unsupported commitplan representation")
 
 type PlanApplier interface {
 	Apply(ctx context.Context, plan *commitplan.Plan) error
@@ -48,5 +51,5 @@ func (c *SpannerCommitter) Apply(ctx context.Context, plan *commitplan.Plan) err
 		return err
 	}
 
-	return nil
+	return ErrUnsupportedPlanType
 }

@@ -10,6 +10,8 @@ Test task implementation for a DDD/Clean Architecture Go service using Spanner, 
 - `github.com/Vektor-AI/commitplan` (+ Spanner driver)
 - `math/big` for decimal arithmetic (`*big.Rat`)
 - `testify` for tests
+- `golangci-lint` for static checks
+- GitHub Actions CI
 
 ## Architecture Highlights
 
@@ -30,6 +32,10 @@ Test task implementation for a DDD/Clean Architecture Go service using Spanner, 
 - [proto/product/v1/product_service.proto](proto/product/v1/product_service.proto)
 - [migrations/001_initial_schema.sql](migrations/001_initial_schema.sql)
 - [tests/e2e/product_test.go](tests/e2e/product_test.go)
+- [docs/architecture.md](docs/architecture.md)
+- [.github/workflows/ci.yml](.github/workflows/ci.yml)
+- [.golangci.yml](.golangci.yml)
+- [Dockerfile](Dockerfile)
 
 ## Run locally
 
@@ -54,6 +60,12 @@ set SPANNER_EMULATOR_HOST=localhost:9010
 make test
 ```
 
+Run only unit tests (excluding e2e):
+
+```bash
+go test $(go list ./... | grep -v '/tests/e2e')
+```
+
 ### 4) Start gRPC server
 
 ```bash
@@ -68,6 +80,14 @@ make run
 - Repositories return mutations, commit is done only in usecases.
 - Added manual proto Go stubs in repo so project is self-contained; replace with generated files in production.
 - E2E tests target emulator and auto-provision test DBs; they skip when emulator is unavailable.
+- Added public facade package [pkg/productcatalog/service.go](pkg/productcatalog/service.go) for clearer composition boundary.
+
+## Quality Gates
+
+- Lint: `golangci-lint run`
+- Vet: `go vet ./...`
+- CI pipeline: lint + vet + unit tests on PRs/pushes
+- Container image build: [Dockerfile](Dockerfile)
 
 ## Notes
 
