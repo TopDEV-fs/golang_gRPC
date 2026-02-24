@@ -1,3 +1,6 @@
+// Package services wires together all application-layer components into a single
+// Container that is consumed by the transport layer. It is the composition root
+// for the product-catalog service.
 package services
 
 import (
@@ -13,6 +16,7 @@ import (
 	"github.com/example/product-catalog-service/internal/pkg/committer"
 )
 
+// ProductCommands groups all write-side (command) use-case interactors.
 type ProductCommands struct {
 	CreateProduct *create_product.Interactor
 	UpdateProduct *update_product.Interactor
@@ -20,16 +24,23 @@ type ProductCommands struct {
 	Discount      *apply_discount.Interactor
 }
 
+// ProductQueries groups all read-side (query) handlers.
 type ProductQueries struct {
 	GetProduct   *get_product.Query
 	ListProducts *list_products.Query
 }
 
+// Container is the application-level service locator produced by BuildContainer.
+// The transport layer MUST NOT instantiate use cases or queries directly;
+// it should depend on Container exclusively.
 type Container struct {
 	Commands ProductCommands
 	Queries  ProductQueries
 }
 
+// BuildContainer constructs and wires every application-layer component.
+// It is called once at process start and the resulting Container is shared
+// across all requests (all components are safe for concurrent use).
 func BuildContainer(spannerClient *spanner.Client) *Container {
 	productRepo := repo.NewProductRepo(spannerClient)
 	outboxRepo := repo.NewOutboxRepo()

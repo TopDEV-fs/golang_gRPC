@@ -1,3 +1,7 @@
+// Package repo provides Cloud Spanner implementations of the product contracts
+// interfaces (ProductRepository, OutboxRepository, ProductReadModel). All
+// write-side methods return *spanner.Mutation so callers can batch them into
+// a single read-write transaction via the Golden Mutation Pattern.
 package repo
 
 import (
@@ -8,20 +12,26 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"google.golang.org/api/iterator"
+
 	"github.com/example/product-catalog-service/internal/app/product/contracts"
 	"github.com/example/product-catalog-service/internal/app/product/domain"
 	"github.com/example/product-catalog-service/internal/models/m_outbox"
 	"github.com/example/product-catalog-service/internal/models/m_product"
 )
 
+// ProductRepo implements contracts.ProductRepository against Cloud Spanner.
 type ProductRepo struct {
 	client *spanner.Client
 }
 
+// NewProductRepo returns a ProductRepo backed by the given Spanner client.
 func NewProductRepo(client *spanner.Client) *ProductRepo {
 	return &ProductRepo{client: client}
 }
 
+// FindByID loads a product aggregate from Spanner by its primary key.
+// Returns the underlying iterator error (including iterator.Done) when the
+// product is not found.
 func (r *ProductRepo) FindByID(ctx context.Context, id string) (*domain.Product, error) {
 	stmt := spanner.Statement{
 		SQL: `SELECT product_id, name, description, category, base_price_numerator, base_price_denominator,
@@ -81,6 +91,7 @@ func (r *ProductRepo) FindByID(ctx context.Context, id string) (*domain.Product,
 	), nil
 }
 
+// InsertMut builds a Spanner insert mutation that persists a new product row.
 func (r *ProductRepo) InsertMut(p *domain.Product) *spanner.Mutation {
 	values := map[string]any{
 		m_product.ProductID:            p.ID(),
@@ -102,6 +113,9 @@ func (r *ProductRepo) InsertMut(p *domain.Product) *spanner.Mutation {
 	return spanner.InsertMap(m_product.Table, values)
 }
 
+// UpdateMut builds a targeted Spanner update mutation that writes only the
+// dirty fields tracked by the aggregate's ChangeTracker. Returns nil when no
+// fields are dirty (no mutation needed).
 func (r *ProductRepo) UpdateMut(p *domain.Product) *spanner.Mutation {
 	updates := map[string]any{m_product.ProductID: p.ID()}
 	if p.Changes().Dirty(domain.FieldName) {
@@ -137,8 +151,10 @@ func (r *ProductRepo) UpdateMut(p *domain.Product) *spanner.Mutation {
 	return spanner.UpdateMap(m_product.Table, updates)
 }
 
+// OutboxRepo implements contracts.OutboxRepository against Cloud Spanner.
 type OutboxRepo struct{}
 
+// NewOutboxRepo returns a new OutboxRepo.
 func NewOutboxRepo() *OutboxRepo {
 	return &OutboxRepo{}
 }
@@ -156,10 +172,13 @@ func (r *OutboxRepo) InsertMut(event contracts.OutboxEvent) *spanner.Mutation {
 	})
 }
 
+// ProductReadModel implements contracts.ProductReadModel against Cloud Spanner.
+// It queries the products table directly without loading domain aggregates.
 type ProductReadModel struct {
 	client *spanner.Client
 }
 
+// NewProductReadModel returns a ProductReadModel backed by the given Spanner client.
 func NewProductReadModel(client *spanner.Client) *ProductReadModel {
 	return &ProductReadModel{client: client}
 }

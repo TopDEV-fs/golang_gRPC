@@ -5,9 +5,13 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
 	"github.com/example/product-catalog-service/internal/app/product/domain"
 )
 
+// mapDomainError translates domain sentinel errors to the appropriate gRPC
+// status codes. Unknown errors are mapped to codes.Internal to avoid leaking
+// internal details to callers.
 func mapDomainError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrInvalidName),

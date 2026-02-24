@@ -9,14 +9,19 @@ import (
 	"github.com/example/product-catalog-service/internal/app/product/domain"
 )
 
+// Query executes the GetProduct read query.
 type Query struct {
 	readModel contracts.ProductReadModel
 }
 
+// New returns a new GetProduct Query backed by the given read model.
 func New(readModel contracts.ProductReadModel) *Query {
 	return &Query{readModel: readModel}
 }
 
+// Execute fetches the product with the given productID and computes the effective
+// price by applying any currently active discount. Returns a fully populated
+// ProductDTO or an error (including iterator.Done when not found).
 func (q *Query) Execute(ctx context.Context, productID string) (*ProductDTO, error) {
 	row, err := q.readModel.GetByID(ctx, productID)
 	if err != nil {

@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Field name constants used by ChangeTracker to identify which aggregate
+// fields have been mutated since the last persistence operation.
 const (
 	FieldName        = "name"
 	FieldDescription = "description"
@@ -14,6 +16,7 @@ const (
 	FieldArchivedAt  = "archived_at"
 )
 
+// ProductStatus represents the lifecycle state of a product.
 type ProductStatus string
 
 const (
@@ -22,16 +25,26 @@ const (
 	ProductStatusArchived ProductStatus = "ARCHIVED"
 )
 
+// ChangeTracker records which fields of a Product aggregate have been mutated
+// since it was last loaded from or saved to the repository. The repository
+// uses this information to emit targeted (partial) UPDATE mutations rather
+// than overwriting every column on every save.
 type ChangeTracker struct {
 	dirtyFields map[string]bool
 }
 
+// NewChangeTracker returns an initialised ChangeTracker with no dirty fields.
 func NewChangeTracker() *ChangeTracker {
 	return &ChangeTracker{dirtyFields: make(map[string]bool)}
 }
 
+// MarkDirty records that the named field has been mutated.
 func (ct *ChangeTracker) MarkDirty(field string) { ct.dirtyFields[field] = true }
+
+// Dirty reports whether the named field has been marked as mutated.
 func (ct *ChangeTracker) Dirty(field string) bool { return ct.dirtyFields[field] }
+
+// Fields returns a snapshot copy of the current dirty-field map.
 func (ct *ChangeTracker) Fields() map[string]bool {
 	copy := make(map[string]bool, len(ct.dirtyFields))
 	for k, v := range ct.dirtyFields {
@@ -39,8 +52,13 @@ func (ct *ChangeTracker) Fields() map[string]bool {
 	}
 	return copy
 }
+
+// Reset clears all dirty-field markers after a successful save.
 func (ct *ChangeTracker) Reset() { ct.dirtyFields = make(map[string]bool) }
 
+// Product is the central aggregate root of the product-catalog bounded context.
+// All state transitions go through methods on this type to ensure invariants
+// and domain events are maintained consistently.
 type Product struct {
 	id          string
 	name        string
@@ -56,6 +74,9 @@ type Product struct {
 	events      []DomainEvent
 }
 
+// NewProduct creates a new Product aggregate in INACTIVE status and raises a
+// ProductCreatedEvent. Returns ErrInvalidName, ErrInvalidCategory, or
+// ErrInvalidPrice if input constraints are violated.
 func NewProduct(id, name, description, category string, basePrice *Money, now time.Time) (*Product, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, ErrInvalidName
@@ -82,6 +103,8 @@ func NewProduct(id, name, description, category string, basePrice *Money, now ti
 	return p, nil
 }
 
+// RehydrateProduct reconstructs a Product from persisted data without raising
+// domain events. It is used exclusively by the repository layer.
 func RehydrateProduct(id, name, description, category string, basePrice *Money, discount *Discount, status ProductStatus, createdAt, updatedAt time.Time, archivedAt *time.Time) *Product {
 	return &Product{
 		id:          id,
@@ -201,6 +224,8 @@ func (p *Product) touch(now time.Time) {
 	p.updatedAt = now.UTC()
 }
 
+// PullDomainEvents returns all pending domain events and clears the internal
+// slice, implementing the "pull" pattern to ensure each event is consumed once.
 func (p *Product) PullDomainEvents() []DomainEvent {
 	e := p.events
 	p.events = nil

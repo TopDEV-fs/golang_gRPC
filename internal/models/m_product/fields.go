@@ -1,3 +1,6 @@
+// Package m_product defines Spanner table and column name constants for the
+// products table. Using constants avoids typos in SQL strings and makes
+// column renames a single-file change.
 package m_product
 
 const (

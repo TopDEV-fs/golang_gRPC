@@ -4,20 +4,75 @@ run:
 
 linters:
   enable:
+    # Correctness
     - govet
     - errcheck
     - staticcheck
-    - ineffassign
     - unused
+    - ineffassign
+    - bodyclose
+    - contextcheck
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    # Code quality
     - gocritic
-    - gofmt
     - revive
+    - gofmt
+    - goimports
+    - godot
+    - misspell
+    - whitespace
+    - unconvert
+    - unparam
+    # Security
+    - gosec
+    # Maintainability
+    - cyclop
+    - funlen
+    - gocognit
+    - maintidx
+    - nestif
+    # Test hygiene
+    - testifylint
+    - thelper
+    - tparallel
 
 linters-settings:
   revive:
     rules:
       - name: exported
-        disabled: true
+        arguments:
+          - checkPrivateReceivers
+          - sayRepetitiveInsteadOfStutters
+  godot:
+    scope: declarations
+    capital: false
+  gosec:
+    excludes:
+      - G115  # integer overflow conversion (noise in our codebase)
+  cyclop:
+    max-complexity: 15
+  funlen:
+    lines: 80
+    statements: 50
+  gocognit:
+    min-complexity: 20
+  testifylint:
+    enable-all: true
+  maintidx:
+    under: 20
 
 issues:
   exclude-use-default: false
+  exclude-rules:
+    # Relax length limits in e2e test helpers and generated proto files.
+    - path: 'tests/e2e/.*\.go'
+      linters: [funlen, cyclop, gocognit]
+    - path: '\.pb\.go$'
+      linters: [godot, revive, govet, unused, staticcheck]
+    # Repository scan functions are naturally long due to scanning columns.
+    - path: 'internal/app/product/repo/product_repo\.go'
+      linters: [funlen]
+  max-issues-per-linter: 0
+  max-same-issues: 0

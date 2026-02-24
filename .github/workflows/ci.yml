@@ -5,31 +5,113 @@ on:
     branches: ["main", "master"]
   pull_request:
 
+# Cancel in-progress runs on the same branch to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.22"
+
 jobs:
-  lint-and-test:
+  # ──────────────────────────────────────────────────────
+  # Job 1: Static analysis (vet + lint)
+  # ──────────────────────────────────────────────────────
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Download modules
-        run: go mod download
-
-      - name: Vet
+      - name: go vet
         run: go vet ./...
 
-      - name: Lint
+      - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.61
+          args: --timeout=5m
 
-      - name: Unit tests
+  # ──────────────────────────────────────────────────────
+  # Job 2: Unit tests with race detector and coverage
+  # ──────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run unit tests
         run: |
-          PKGS=$(go list ./... | grep -v '/tests/e2e')
-          go test -race -count=1 $PKGS
+          go test -race -count=1 -coverprofile=coverage.out \
+            $(go list ./... | grep -v '/tests/e2e')
+
+      - name: Check coverage threshold (≥ 60 %)
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out \
+            | grep total | awk '{print $3}' | tr -d '%')
+          echo "Total coverage: ${COVERAGE}%"
+          awk -v c="$COVERAGE" 'BEGIN { if (c+0 < 60) { print "Coverage " c "% below 60% threshold"; exit 1 } }'
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────
+  # Job 3: E2E tests (requires Spanner emulator)
+  # ──────────────────────────────────────────────────────
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    services:
+      spanner-emulator:
+        image: gcr.io/cloud-spanner-emulator/emulator
+        ports:
+          - 9010:9010
+          - 9020:9020
+    env:
+      SPANNER_EMULATOR_HOST: localhost:9010
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run e2e tests
+        run: go test -v -count=1 -timeout=120s ./tests/e2e/...
+
+  # ──────────────────────────────────────────────────────
+  # Job 4: Docker image build (validates Dockerfile)
+  # ──────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: product-catalog-service:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

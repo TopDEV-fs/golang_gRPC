@@ -9,14 +9,19 @@ import (
 	"github.com/example/product-catalog-service/internal/app/product/domain"
 )
 
+// Query executes the ListProducts read query.
 type Query struct {
 	readModel contracts.ProductReadModel
 }
 
+// New returns a new ListProducts Query backed by the given read model.
 func New(readModel contracts.ProductReadModel) *Query {
 	return &Query{readModel: readModel}
 }
 
+// Execute fetches a paginated list of active products, optionally filtered by
+// category, and resolves the effective price for each item. Returns a Result
+// containing the page items and a token for the next page.
 func (q *Query) Execute(ctx context.Context, category string, pageSize int32, pageToken string) (*Result, error) {
 	rows, err := q.readModel.ListActive(ctx, category, pageSize, pageToken)
 	if err != nil {

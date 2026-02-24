@@ -6,6 +6,7 @@ import (
 	productv1 "github.com/example/product-catalog-service/proto/product/v1"
 )
 
+// ListProducts delegates to the ListProducts query and maps results to proto messages.
 func (h *Handler) ListProducts(ctx context.Context, req *productv1.ListProductsRequest) (*productv1.ListProductsReply, error) {
 	result, err := h.container.Queries.ListProducts.Execute(ctx, req.Category, req.PageSize, req.PageToken)
 	if err != nil {

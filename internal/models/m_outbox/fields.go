@@ -1,3 +1,5 @@
+// Package m_outbox defines Spanner table and column name constants for the
+// outbox_events table.
 package m_outbox
 
 const (

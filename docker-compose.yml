@@ -1,9 +1,34 @@
-version: '3.8'
-
 services:
   spanner-emulator:
     image: gcr.io/cloud-spanner-emulator/emulator
     container_name: product-catalog-spanner
     ports:
-      - "9010:9010"
-      - "9020:9020"
+      - "9010:9010"  # gRPC endpoint
+      - "9020:9020"  # REST endpoint
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9010"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - product-catalog
+
+  # Uncomment to run the service container locally alongside the emulator.
+  # product-catalog:
+  #   build: .
+  #   environment:
+  #     SPANNER_EMULATOR_HOST: spanner-emulator:9010
+  #     SPANNER_DATABASE: projects/local-dev/instances/test-instance/databases/product_catalog
+  #     GRPC_ADDR: :50051
+  #   ports:
+  #     - "50051:50051"
+  #   depends_on:
+  #     spanner-emulator:
+  #       condition: service_healthy
+  #   networks:
+  #     - product-catalog
+
+networks:
+  product-catalog:
+    driver: bridge
